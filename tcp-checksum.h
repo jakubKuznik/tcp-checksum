@@ -34,7 +34,7 @@
 
 
 #define PH_SIZE 12
-
+#define TCP 6
 
 struct pseudoHeader {
   uint32_t srcIp;
@@ -46,7 +46,14 @@ struct pseudoHeader {
 typedef struct pseudoHeader pseudoHeader;
 
 
-uint16_t tcpChecksum(uint8_t * data);
+/**
+ * @brief count tcp checksum
+ * 
+ * @param data input data ph contatenated with tcp header and payload 
+ * @param len data lenght 
+ * @return uint16_t checksum 
+ */
+uint16_t tcpChecksum(uint8_t * data, int len);
 
 
 
