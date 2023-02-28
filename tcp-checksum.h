@@ -36,5 +36,18 @@
 #define PH_SIZE 12
 
 
+struct pseudoHeader {
+  uint32_t srcIp;
+  uint32_t dstIp;
+  uint8_t zero; 
+  uint8_t ptcl;
+  uint16_t tcpLen; 
+};
+typedef struct pseudoHeader pseudoHeader;
+
+
+uint16_t tcpChecksum(uint8_t * data);
+
+
 
 #endif 
