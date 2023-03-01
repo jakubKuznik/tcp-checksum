@@ -5,7 +5,7 @@
 #include "tcp-checksum.h"
 
 /* IT IS IMPORTANT THAT EVERYTHING IS IN NETWORK BYTE ORDER 
-   ESPECIALLY THE FLAGS AR TRICKY (SAME AS WIRESHARK BYTE ORDER)*/
+   ESPECIALLY THE FLAGS ARE TRICKY (SAME AS WIRESHARK BYTE ORDER)*/
 
 
 /* example packet: 
@@ -101,10 +101,10 @@ Modbus
 int main(void){
 
   printf("packet in network byte order (big endian):\n");
-  printf(" 00 00 00 01 00 06 8c 04 ba 08 73 03 00 00 08 00\n \
-45 00 00 34 92 87 40 00 40 06 74 f5 c0 a8 58 fa\n \
-c0 a8 58 fc d3 3a 01 f6 05 04 35 6c 14 5c 35 00\n \
-50 18 01 f6 b8 18 00 00 c3 50 00 00 00 06 01 05\n \ 
+  printf("00 00 00 01 00 06 8c 04 ba 08 73 03 00 00 08 00\n\
+45 00 00 34 92 87 40 00 40 06 74 f5 c0 a8 58 fa\n\
+c0 a8 58 fc d3 3a 01 f6 05 04 35 6c 14 5c 35 00\n\
+50 18 01 f6 b8 18 00 00 c3 50 00 00 00 06 01 05\n\ 
 00 03 ff 00\n");
 
   // pseudo header
@@ -120,31 +120,32 @@ c0 a8 58 fc d3 3a 01 f6 05 04 35 6c 14 5c 35 00\n \
   /***************************/
 
   pseudoHeader ph; 
-  ph.srcIp  = htonl(0xc0a858fa);
-  ph.dstIp  = htonl(0xc0a858fc);
-  ph.zero   = 0x00;
-  ph.ptcl   = TCP;
-  ph.tcpLen = htons(0x20); // 32 bytes 
+  ph.srcIp  = htonl(0xc0a858fa); // 192.168.88.250
+  ph.dstIp  = htonl(0xc0a858fc); // 192.168.88.252
+  ph.zero   = 0x00;              // reserved byte
+  ph.ptcl   = TCP;               // TCP == 0x06
+  ph.tcpLen = htons(0x20);       // 32 bytes == TCP Header + Payload len 
   
   // tcp header 
   struct tcphdr tcpHeader;
-  tcpHeader.source = htons(0xd33a);      // Source port: 54298 (0xd33a)
-  tcpHeader.dest = htons(0x01f6);        // Destination port: 502 (0x01f6)
-  tcpHeader.seq = htonl(0x0504356c);     // Sequence number: 0x0504356c
-  tcpHeader.ack_seq = htonl(0x145c3500); // Acknowledgment number: 0x145c3500
+  tcpHeader.source = htons(0xd33a);      // Source port: 54298 
+  tcpHeader.dest = htons(0x01f6);        // Destination port: 502 
+  tcpHeader.seq = htonl(0x0504356c);     // Sequence number: 84161900
+  tcpHeader.ack_seq = htonl(0x145c3500); // Acknowledgment number: 341587200
 
-  // Tricky is to set the flags correct way 
-  char *pt = &tcpHeader.ack_seq;
-  pt = pt + 4;
+  // Tricky is to set the flags correct way so i just hardcode copied 0x5018
+  // because it is impossible to set it via .off of .th_flags as there is macro.
+  unsigned char *pt = &tcpHeader.ack_seq;
+  pt = pt + 4; // move pointer to 4 bytes forward 
   char a[2];
   a[0] = 0x50;
   a[1] = 0x18;
   memcpy(pt, &a, 2);
 
-  tcpHeader.window = htons(0x01f6);      // Window size: 0x01f6
+  tcpHeader.window = htons(0x01f6);      // Window size: 512 
   // ! important you have to set tcp checksum to 0 always 
-  tcpHeader.check = 0x0000;              // Checksum: 0x0000 (set to 0 initially)
-  tcpHeader.urg_ptr = 0x0000;            // Urgent pointer: 0x0000
+  tcpHeader.check = 0x0000;              // Checksum: 0 
+  tcpHeader.urg_ptr = 0x0000;            // Urgent pointer: 0
 
   // TCP payload. It will be interpreted as 16 bit word no matter what 
   unsigned char data[] = {
@@ -153,17 +154,22 @@ c0 a8 58 fc d3 3a 01 f6 05 04 35 6c 14 5c 35 00\n \
     0x00, 0x03, 0xff, 0x00
   };
 
-  unsigned char *rawData = (char*) malloc(sizeof(pseudoHeader) + sizeof(struct tcphdr) + sizeof(data));
+  // copy everytingh to one char array 
+  unsigned char *rawData = malloc(sizeof(pseudoHeader) + sizeof(struct tcphdr) + sizeof(data));
   memcpy(rawData, &ph, sizeof(pseudoHeader));
   memcpy(rawData+ sizeof(pseudoHeader), &tcpHeader, sizeof(struct tcphdr));
   memcpy(rawData + sizeof(pseudoHeader) + sizeof(struct tcphdr), data, sizeof(data)); 
 
+  // count array len 
   int len = sizeof(ph) + sizeof(struct tcphdr) + sizeof(data);
+  
+  // debug 
   printf("PseudoHeader + tcpHeader + tcpPayload:\n");
   for (int i = 0; i < len; i++){
     printf("%02x ",rawData[i]);
   }
 
+  // result 
   uint16_t tcpCh = tcpChecksum(rawData, len);
   printf("\nChecksum: %04x\n",tcpCh);
 
